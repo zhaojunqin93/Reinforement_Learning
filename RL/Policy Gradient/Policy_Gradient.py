@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 class PolicyGradient:
 	def __init__(self, n_features, n_actions, learning_rate = 0.01, reward_decay = 0.95):
@@ -9,6 +10,8 @@ class PolicyGradient:
 		self.gamma = reward_decay
 
 		self.ep_obs, self.ep_as, self.ep_rs = [], [], []
+
+		self.cost_his = []
 
 		self._build_net()
 
@@ -37,10 +40,10 @@ class PolicyGradient:
 
 		with tf.variable_scope('loss'):
 			log_prob = tf.reduce_sum(-tf.log(self.all_act) * tf.one_hot(self.tf_acts, self.n_actions), axis=1)
-			loss = tf.reduce_mean(log_prob * self.tf_vt)
+			self.loss = tf.reduce_mean(log_prob * self.tf_vt)
 
 		with tf.variable_scope('train'):
-			self.train_op = tf.train.AdamOptimizer(self.lr).minimize(loss)
+			self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
 
 	def choose_action(self, observation):
 		prob_weights = self.sess.run(self.all_act, feed_dict={self.tf_obs: observation[np.newaxis, :]})
@@ -57,13 +60,14 @@ class PolicyGradient:
 		discounted_ep_rs_norm = self._discount_and_norm_rewards()
 
 		# train on episode
-		self.sess.run(self.train_op, feed_dict={
+		_, cost = self.sess.run([self.train_op, self.loss], feed_dict={
 			self.tf_obs: np.vstack(self.ep_obs),  # shape=[None, n_obs]
 			self.tf_acts: np.array(self.ep_as),  # shape=[None, ]
 			self.tf_vt: discounted_ep_rs_norm,  # shape=[None, ]
 		})
 
 		self.ep_obs, self.ep_as, self.ep_rs = [], [], []  # empty episode data
+		self.cost_his.append(cost)
 		return discounted_ep_rs_norm
 
 
@@ -79,3 +83,9 @@ class PolicyGradient:
 		discounted_ep_rs -= np.mean(discounted_ep_rs)
 		discounted_ep_rs /= np.std(discounted_ep_rs)
 		return discounted_ep_rs
+
+	def plot_cost(self):
+		plt.plot(np.arange(len(self.cost_his)), self.cost_his)
+		plt.ylabel('Cost')
+		plt.xlabel('training steps')
+		plt.show()

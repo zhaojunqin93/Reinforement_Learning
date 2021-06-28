@@ -10,7 +10,7 @@ GAMMA = 0.95
 
 
 def main():
-    env = gym.make('CartPole-v0')
+    env = gym.make('LunarLander-v2')
     env.seed(0)
     S_DIMs = env.observation_space.shape[0] # S_DIMS 4
     A_DIMs = env.action_space.n # A_DIMS 2
@@ -32,6 +32,7 @@ def main():
             rewards = []
 
             while True:  # run policy RUN_POLICY_STEPS which is much less than episode length
+                env.render()
                 obs = np.stack([obs]).astype(dtype=np.float32)  # prepare to feed placeholder Policy.obs
                 act, v_pred = Policy.act(obs=obs, stochastic=True)
                 act = np.ndarray.item(act) # Copy an element of an array to a standard Python scalar and return it.
@@ -43,7 +44,9 @@ def main():
                 rewards.append(reward)
 
                 next_obs, reward, done, info = env.step(act)
-                # print("reward", reward)
+                print("next_obs", next_obs)
+                print("reward", reward)
+                print("done", done)
 
                 if done:
                     v_preds_next = v_preds[1:] + [0]  # next state of terminate state has 0 state value

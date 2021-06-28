@@ -1,5 +1,7 @@
 import tensorflow as tf
 import copy
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class PPOTrain:
@@ -16,6 +18,8 @@ class PPOTrain:
         self.Policy = Policy
         self.Old_Policy = Old_Policy
         self.gamma = gamma
+
+        self.cost_his = []
 
         pi_trainable = self.Policy.get_trainable_variables()
         old_pi_trainable = self.Old_Policy.get_trainable_variables()
@@ -50,38 +54,36 @@ class PPOTrain:
             clipped_ratios = tf.clip_by_value(ratios, clip_value_min=1 - clip_value, clip_value_max=1 + clip_value)
             loss_clip = tf.minimum(tf.multiply(self.gaes, ratios), tf.multiply(self.gaes, clipped_ratios))
             loss_clip = tf.reduce_mean(loss_clip)
-            tf.summary.scalar('loss_clip', loss_clip)
 
         # construct computation graph for loss of value function
         with tf.variable_scope('loss/vf'):
             v_preds = self.Policy.v_preds
             loss_vf = tf.squared_difference(self.rewards + self.gamma * self.v_preds_next, v_preds)
             loss_vf = tf.reduce_mean(loss_vf)
-            tf.summary.scalar('loss_vf', loss_vf)
 
         # construct computation graph for loss of entropy bonus
         with tf.variable_scope('loss/entropy'):
             entropy = -tf.reduce_sum(self.Policy.act_probs *
                                      tf.log(tf.clip_by_value(self.Policy.act_probs, 1e-10, 1.0)), axis=1)
             entropy = tf.reduce_mean(entropy, axis=0)  # mean of entropy of pi(obs)
-            tf.summary.scalar('entropy', entropy)
 
         with tf.variable_scope('loss'):
-            loss = loss_clip - c_1 * loss_vf + c_2 * entropy
-            loss = -loss  # minimize -loss == maximize loss
-            tf.summary.scalar('loss', loss)
+            self.loss = tf.reduce_mean(loss_clip - c_1 * loss_vf + c_2 * entropy)
+            # loss = loss_clip - c_1 * loss_vf + c_2 * entropy
 
         self.merged = tf.summary.merge_all()
-        optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, epsilon=1e-5)
-        self.train_op = optimizer.minimize(loss, var_list=pi_trainable)
+        self._train_op = tf.train.AdamOptimizer(learning_rate=1e-4, epsilon=1e-5).minimize(-self.loss)
+        # optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, epsilon=1e-5)
+        # self.train_op = optimizer.minimize(loss, var_list=pi_trainable)
 
     def train(self, obs, actions, rewards, v_preds_next, gaes):
-        tf.get_default_session().run([self.train_op], feed_dict={self.Policy.obs: obs,
+        _, cost = tf.get_default_session().run([self._train_op, self.loss], feed_dict={self.Policy.obs: obs,
                                                                  self.Old_Policy.obs: obs,
                                                                  self.actions: actions,
                                                                  self.rewards: rewards,
                                                                  self.v_preds_next: v_preds_next,
                                                                  self.gaes: gaes})
+        self.cost_his.append(cost)
 
     def assign_policy_parameters(self):
         # assign policy parameter values to old policy parameters
@@ -94,3 +96,9 @@ class PPOTrain:
         for t in reversed(range(len(gaes) - 1)):  # is T-1, where T is time step which run policy
             gaes[t] = gaes[t] + self.gamma * gaes[t + 1]
         return gaes
+    #
+    # def plot_cost(self):
+    #     plt.plot(np.arange(len(self.cost_his)), self.cost_his)
+    #     plt.ylabel('Cost')
+    #     plt.xlabel('Episodes')
+    #     plt.show()

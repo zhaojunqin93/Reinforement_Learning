@@ -1,16 +1,21 @@
 import gym
-from DQN import DeepQNetwork
+from DQN_3layers import DeepQNetwork
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 
-MAX_EP_STEPS = 200
+MAX_EP_STEPS = 1000
 
-env = gym.make('CartPole-v0')
+env = gym.make('LunarLander-v2')
 env = env.unwrapped
+env.seed(0)
+random.seed(0)
+print("action_space", env.action_space.n)
+print("observation_space", env.observation_space.shape)
 
 RL = DeepQNetwork(n_actions=env.action_space.n,
 				  n_features=env.observation_space.shape[0],
-				  learning_rate=0.01,
+				  learning_rate=5e-4,
 				  e_greedy=0.9,
 				  replace_target_iter=100,
 				  memory_size=2000,
@@ -25,17 +30,17 @@ for i_episode in range(1000):
 	t = 0
 
 	while True:
+		# if i_episode % 50 == 0:
 		# env.render()
 
 		action = RL.choose_action(observation)
+		# print("action",action)
 
 		observation_, reward, done, info = env.step(action)
-
-		x, x_dot, theta, theta_dot = observation_
-		r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
-		r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
-		reward = r1 + r2
-
+		#
+		# print("observation_", observation_)
+		# print("reward", reward)
+		# print("done", done)
 		RL.store_transition(observation, action, reward, observation_)
 
 		ep_r +=reward
@@ -60,4 +65,4 @@ plt.xlabel('Episode')
 plt.ylabel('Moving averaged episode reward')
 plt.show()
 
-RL.plot_cost()
+# RL.plot_cost()

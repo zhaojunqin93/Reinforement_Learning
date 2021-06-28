@@ -3,7 +3,7 @@ from Policy_Gradient import PolicyGradient
 import matplotlib.pyplot as plt
 import numpy as np
 
-env = gym.make('CartPole-v0')
+env = gym.make('LunarLander-v2')
 env = env.unwrapped
 
 RL = PolicyGradient(
@@ -53,4 +53,4 @@ plt.xlabel('Episode')
 plt.ylabel('Moving averaged episode reward')
 plt.show()
 
-RL.plot_cost()
+# RL.plot_cost()

@@ -7,14 +7,14 @@ np.random.seed(2)
 tf.set_random_seed(2)
 
 OUTPUT_GRAPH = False
-MAX_EPISODE = 3000
+MAX_EPISODE = 1000
 DISPLAY_REWARD_THRESHOLD = 200
 MAX_EP_STEPS = 200
 RENDER = False
-GAMMA = 0.9
+GAMMA = 0.95
 
-env = gym.make('CartPole-v1')
-env.seed(1)
+env = gym.make('CartPole-v0')
+# env.seed(1)
 env = env.unwrapped
 
 N_F = env.observation_space.shape[0]
@@ -35,7 +35,7 @@ class Actor(object):
 				inputs=self.s,
 				units=32,
 				activation=tf.nn.relu,
-				kernel_initializer=tf.random_normal_initializer(0., .1),
+				kernel_initializer=tf.random_normal_initializer(0., .3),
 				bias_initializer=tf.constant_initializer(0.1),
 				name='l1'
 			)
@@ -44,7 +44,7 @@ class Actor(object):
 				inputs=l1,
 				units=n_actions,
 				activation=tf.nn.softmax,
-				kernel_initializer=tf.random_normal_initializer(0., .1),
+				kernel_initializer=tf.random_normal_initializer(0., .3),
 				bias_initializer=tf.constant_initializer(0.1),
 				name='acts_prob'
 			)
@@ -74,13 +74,14 @@ class Critic(object):
 		self.s = tf.placeholder(tf.float32, [1, n_inputs], name='state')
 		self.v_ = tf.placeholder(tf.float32, [1, 1], name='v_next')
 		self.r = tf.placeholder(tf.float32, None, name='reward')
+		self.cost_his = []
 
 		with tf.variable_scope('Critic'):
 			l1 = tf.layers.dense(
 				inputs=self.s,
 				units=64,
 				activation=tf.nn.relu,
-				kernel_initializer=tf.random_normal_initializer(0., .1),
+				kernel_initializer=tf.random_normal_initializer(0., .3),
 				bias_initializer=tf.constant_initializer(0.1),
 				name='l1'
 			)
@@ -89,7 +90,7 @@ class Critic(object):
 				inputs=l1,
 				units=1,
 				activation=None,
-				kernel_initializer=tf.random_normal_initializer(0., .1),
+				kernel_initializer=tf.random_normal_initializer(0., .3),
 				bias_initializer=tf.constant_initializer(0.1),
 				name='value'
 			)
@@ -107,8 +108,15 @@ class Critic(object):
 		v_ = self.sess.run(self.v, {self.s: s_})
 
 		td_error, _ = self.sess.run([self.td_error, self.train_op], {self.s: s, self.v_: v_, self.r: r})
+		self.cost_his.append(td_error)
 		# print("td_error", td_error)
 		return td_error
+
+	def plot_cost(self):
+		plt.plot(np.arange(len(self.cost_his)), self.cost_his)
+		plt.ylabel('Cost')
+		plt.xlabel('training steps')
+		plt.show()
 
 sess = tf.Session()
 
@@ -118,10 +126,12 @@ critic = Critic(sess, n_inputs=N_F, c_lr=0.01)
 sess.run(tf.global_variables_initializer())
 
 all_ep_r = []
+all_td_error = []
 
 for i_episode in range(MAX_EPISODE):
 	s = env.reset()
 	ep_r = 0
+	ep_td_error = 0
 	t = 0
 
 	while True:
@@ -136,26 +146,33 @@ for i_episode in range(MAX_EPISODE):
 		ep_r += r
 
 		td_error = critic.learn(s, r, s_)
+		ep_td_error += td_error[0]
+		# print("td_error", td_error)
 		actor.learn(s, a, td_error)
+
 
 		s = s_
 		t += 1
 
 		if done or t >= MAX_EP_STEPS:
 			ep_rs_sum = ep_r
+			ep_td_error_sum = ep_td_error
 
-			if 'running_reward' not in globals():
-				running_reward = ep_rs_sum
-			else:
-				running_reward = running_reward * 0.95 + ep_rs_sum * 0.05
+			all_ep_r.append(ep_rs_sum)
+			all_td_error.append(ep_td_error_sum)
+			print('episode: ', i_episode,
+				  'ep_r: ', round(ep_r, 2))
 
-			if running_reward > DISPLAY_REWARD_THRESHOLD: RENDER = True
-			print("episode:", i_episode, "  reward:", int(running_reward))
 			break
-	if i_episode == 0:
-		all_ep_r.append(ep_r)
-	else:
-		all_ep_r.append(all_ep_r[-1] * 0.9 + ep_r * 0.1)
+	# if i_episode == 0:
+	# 	all_ep_r.append(ep_r)
+	# else:
+	# 	all_ep_r.append(all_ep_r[-1] * 0.9 + ep_r * 0.1)
 
 plt.plot(np.arange(len(all_ep_r)), all_ep_r)
-plt.xlabel('Episode');plt.ylabel('Moving averaged episode reward');plt.show()
+plt.xlabel('Episode');plt.ylabel('Reward');plt.show()
+#
+# plt.plot(np.arange(len(all_td_error)), all_td_error)
+# plt.xlabel('Training steps');plt.ylabel('Cost');plt.show()
+
+
